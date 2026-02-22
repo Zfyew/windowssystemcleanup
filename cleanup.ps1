@@ -1,6 +1,5 @@
 # Windows System Cleanup Tool
-# Clears temp files, junk files, recycle bin, DNS cache
-# Runs System File Checker and schedules Check Disk on next reboot
+# v4: added System File Checker
 
 function Get-FolderSize($path) {
     if (Test-Path $path) {
@@ -38,34 +37,27 @@ Write-Host ""
 
 $totalSaved = 0
 
-# --- USER TEMP ---
 $totalSaved += Remove-FolderContents $env:TEMP "User Temp Folder"
-
-# --- WINDOWS TEMP ---
 $totalSaved += Remove-FolderContents "C:\Windows\Temp" "Windows Temp Folder"
-
-# --- WINDOWS UPDATE CACHE ---
-Write-Host "[*] Cleaning Windows Update cache..." -ForegroundColor Yellow
-Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
-$totalSaved += Remove-FolderContents "C:\Windows\SoftwareDistribution\Download" "Windows Update Cache"
-Start-Service wuauserv -ErrorAction SilentlyContinue
-
-# --- WINDOWS ERROR REPORTS ---
 $totalSaved += Remove-FolderContents "C:\ProgramData\Microsoft\Windows\WER\ReportArchive" "Windows Error Reports (Archive)"
 $totalSaved += Remove-FolderContents "C:\ProgramData\Microsoft\Windows\WER\ReportQueue" "Windows Error Reports (Queue)"
+$totalSaved += Remove-FolderContents "C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache" "Delivery Optimisation Cache"
 
-# --- RECYCLE BIN ---
+# Memory dumps
+Write-Host "[*] Clearing memory dumps..." -ForegroundColor Yellow
+if (Test-Path "C:\Windows\MEMORY.DMP") {
+    Remove-Item "C:\Windows\MEMORY.DMP" -Force -ErrorAction SilentlyContinue
+    Write-Host "    MEMORY.DMP removed" -ForegroundColor Green
+}
+$totalSaved += Remove-FolderContents "C:\Windows\Minidump" "Minidump Files"
+
 Write-Host "[*] Emptying Recycle Bin..." -ForegroundColor Yellow
 Clear-RecycleBin -Force -ErrorAction SilentlyContinue
 Write-Host "    Done" -ForegroundColor Green
 
-# --- DNS CACHE ---
 Write-Host "[*] Flushing DNS Cache..." -ForegroundColor Yellow
 ipconfig /flushdns | Out-Null
 Write-Host "    Done" -ForegroundColor Green
-
-# --- DELIVERY OPTIMISATION CACHE ---
-$totalSaved += Remove-FolderContents "C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache" "Delivery Optimisation Cache"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -74,7 +66,6 @@ Write-Host "   Total space recovered: $(Format-Bytes $totalSaved)" -ForegroundCo
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# --- SYSTEM FILE CHECKER ---
 Write-Host "========================================" -ForegroundColor Magenta
 Write-Host "      RUNNING SYSTEM FILE CHECKER       " -ForegroundColor Magenta
 Write-Host "   This may take several minutes...     " -ForegroundColor Magenta
@@ -82,19 +73,7 @@ Write-Host "========================================" -ForegroundColor Magenta
 Write-Host ""
 sfc /scannow
 Write-Host ""
-
-# --- CHECK DISK ---
-Write-Host "========================================" -ForegroundColor Magenta
-Write-Host "      SCHEDULING CHECK DISK             " -ForegroundColor Magenta
-Write-Host "========================================" -ForegroundColor Magenta
-Write-Host ""
-Write-Host "[*] chkdsk can scan C: now but cannot fix errors while Windows is running." -ForegroundColor Yellow
-Write-Host "    Scheduling chkdsk /f /r to run on next reboot." -ForegroundColor Yellow
-Write-Output "Y" | chkdsk C: /f /r | Out-Null
-Write-Host "    Scheduled. chkdsk will scan and repair your drive on next restart." -ForegroundColor Green
-Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "   ALL TASKS COMPLETE                   " -ForegroundColor Cyan
-Write-Host "   Restart your PC to run Check Disk    " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
