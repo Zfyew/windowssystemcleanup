@@ -1,5 +1,5 @@
-# Windows System Cleanup Tool - Work in Progress
-# v1: basic temp file cleanup
+# Windows System Cleanup Tool
+# v2: refactored into reusable function, added recycle bin and DNS flush
 
 function Get-FolderSize($path) {
     if (Test-Path $path) {
@@ -14,18 +14,38 @@ function Format-Bytes($bytes) {
     else { "$bytes bytes" }
 }
 
-Write-Host "Starting cleanup..." -ForegroundColor Cyan
+function Remove-FolderContents($path, $label) {
+    if (Test-Path $path) {
+        $before = Get-FolderSize $path
+        Write-Host "[*] Cleaning $label..." -ForegroundColor Yellow
+        Get-ChildItem $path -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        $after = Get-FolderSize $path
+        $saved = $before - $after
+        Write-Host "    Freed: $(Format-Bytes $saved)" -ForegroundColor Green
+        return $saved
+    } else {
+        Write-Host "[*] $label not found, skipping..." -ForegroundColor DarkGray
+        return 0
+    }
+}
 
-# Clean user temp
-$before = Get-FolderSize $env:TEMP
-Get-ChildItem $env:TEMP -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-$after = Get-FolderSize $env:TEMP
-Write-Host "User Temp freed: $(Format-Bytes ($before - $after))" -ForegroundColor Green
+Write-Host ""
+Write-Host "==============================" -ForegroundColor Cyan
+Write-Host "  WINDOWS SYSTEM CLEANUP TOOL " -ForegroundColor Cyan
+Write-Host "==============================" -ForegroundColor Cyan
+Write-Host ""
 
-# Clean windows temp
-$before = Get-FolderSize "C:\Windows\Temp"
-Get-ChildItem "C:\Windows\Temp" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-$after = Get-FolderSize "C:\Windows\Temp"
-Write-Host "Windows Temp freed: $(Format-Bytes ($before - $after))" -ForegroundColor Green
+$totalSaved = 0
+$totalSaved += Remove-FolderContents $env:TEMP "User Temp Folder"
+$totalSaved += Remove-FolderContents "C:\Windows\Temp" "Windows Temp Folder"
 
-Write-Host "Done." -ForegroundColor Cyan
+Write-Host "[*] Emptying Recycle Bin..." -ForegroundColor Yellow
+Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+Write-Host "    Done" -ForegroundColor Green
+
+Write-Host "[*] Flushing DNS Cache..." -ForegroundColor Yellow
+ipconfig /flushdns | Out-Null
+Write-Host "    Done" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "Total freed: $(Format-Bytes $totalSaved)" -ForegroundColor Green
