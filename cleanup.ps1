@@ -1,5 +1,5 @@
 # Windows System Cleanup Tool
-# v2: refactored into reusable function, added recycle bin and DNS flush
+# v3: added Windows Update cache, error reports, delivery optimisation cache
 
 function Get-FolderSize($path) {
     if (Test-Path $path) {
@@ -30,14 +30,23 @@ function Remove-FolderContents($path, $label) {
 }
 
 Write-Host ""
-Write-Host "==============================" -ForegroundColor Cyan
-Write-Host "  WINDOWS SYSTEM CLEANUP TOOL " -ForegroundColor Cyan
-Write-Host "==============================" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "      WINDOWS SYSTEM CLEANUP TOOL       " -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 $totalSaved = 0
+
 $totalSaved += Remove-FolderContents $env:TEMP "User Temp Folder"
 $totalSaved += Remove-FolderContents "C:\Windows\Temp" "Windows Temp Folder"
+
+Write-Host "[*] Cleaning Windows Update cache..." -ForegroundColor Yellow
+Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
+$totalSaved += Remove-FolderContents "C:\Windows\SoftwareDistribution\Download" "Windows Update Cache"
+Start-Service wuauserv -ErrorAction SilentlyContinue
+
+$totalSaved += Remove-FolderContents "C:\ProgramData\Microsoft\Windows\WER\ReportArchive" "Windows Error Reports (Archive)"
+$totalSaved += Remove-FolderContents "C:\ProgramData\Microsoft\Windows\WER\ReportQueue" "Windows Error Reports (Queue)"
 
 Write-Host "[*] Emptying Recycle Bin..." -ForegroundColor Yellow
 Clear-RecycleBin -Force -ErrorAction SilentlyContinue
@@ -47,5 +56,11 @@ Write-Host "[*] Flushing DNS Cache..." -ForegroundColor Yellow
 ipconfig /flushdns | Out-Null
 Write-Host "    Done" -ForegroundColor Green
 
+$totalSaved += Remove-FolderContents "C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache" "Delivery Optimisation Cache"
+
 Write-Host ""
-Write-Host "Total freed: $(Format-Bytes $totalSaved)" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "      CLEANUP COMPLETE                  " -ForegroundColor Cyan
+Write-Host "   Total space recovered: $(Format-Bytes $totalSaved)" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
